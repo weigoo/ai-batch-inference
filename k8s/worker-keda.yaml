@@ -1,0 +1,24 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-queue-scaler
+
+spec:
+  scaleTargetRef:
+    name: worker
+
+  pollingInterval: 5
+  cooldownPeriod: 60
+
+  minReplicaCount: 0
+  maxReplicaCount: 3
+
+  triggers:
+    - type: redis
+
+      metadata:
+        address: redis.default.svc.cluster.local:6379
+        listName: job_queue
+        databaseIndex: "0"
+        activationThreshold: "2"  # Start scaling at 2 jobs
+        listLength: "2"  # Target 2 jobs per worker
