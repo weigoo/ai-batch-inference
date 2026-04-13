@@ -18,15 +18,19 @@ This project implements a job-queue based architecture for processing batch infe
 ## Architecture
 
 ```
-Client → API (FastAPI) → Redis Queue ↔ Workers (x3)
+Client → API (FastAPI) → Redis Queue ↔ Workers (autoscaled by KEDA)
                          ↓
                     Job Storage & Status
+                         ↓
+                    Prometheus Metrics
 ```
 
 **Components:**
 - **API Service**: FastAPI server that accepts batch jobs and serves results
 - **Worker Service**: Polling workers that fetch jobs from Redis queue, run inference, and store results
 - **Redis**: Job queue, status tracking, and result storage
+- **KEDA**: Event-driven autoscaling based on Redis queue depth
+- **Prometheus**: Metrics collection and monitoring
 - **Model**: Hugging Face `distilbert-base-uncased-finetuned-sst-2-english` for sentiment analysis
 
 ## API Endpoints
@@ -105,8 +109,10 @@ python worker/worker.py
 │   └── storage.py       # Result storage
 ├── k8s/                 # Kubernetes manifests
 │   ├── api.yaml
+│   ├── prometheus.yaml
 │   ├── redis.yaml
-│   └── worker.yaml
+│   ├── worker.yaml
+│   └── worker-keda.yaml
 ├── docker-compose.yml
 └── requirements.txt
 ```
@@ -123,11 +129,40 @@ python worker/worker.py
 
 ## Kubernetes Deployment
 
+### Prerequisites
+- KEDA must be installed in your cluster:
+```bash
+helm repo add kedacore https://kedacore.github.io/charts
+helm install keda kedacore/keda --namespace keda --create-namespace
+```
+
+### Deploy
 ```bash
 kubectl apply -f k8s/redis.yaml
 kubectl apply -f k8s/api.yaml
 kubectl apply -f k8s/worker.yaml
+kubectl apply -f k8s/worker-keda.yaml
+kubectl apply -f k8s/prometheus.yaml
 ```
+
+KEDA will automatically scale workers based on Redis queue depth.
+
+## Troubleshooting KEDA Scaling
+
+**Issue: Workers don't scale up when jobs are queued**
+
+Common causes:
+1. **Static replicas** in worker.yaml override KEDA - remove the `replicas:` field
+2. **Redis connectivity** - verify Redis is in the correct namespace:
+   ```bash
+   kubectl get svc --all-namespaces | grep redis
+   ```
+3. **ScaledObject not active** - check KEDA logs:
+   ```bash
+   kubectl logs -n keda deployment/keda-operator
+   kubectl describe scaledobject worker-queue-scaler
+   ```
+4. **Queue threshold too high** - adjust `activationThreshold` and `listLength` in worker-keda.yaml
 
 ## Job Lifecycle
 
@@ -139,8 +174,34 @@ kubectl apply -f k8s/worker.yaml
 
 ## Scaling
 
-- Increase worker replicas in docker-compose.yml or worker.yaml
-- Workers automatically fetch from the shared Redis queue
+### Automatic Scaling with KEDA
+Workers are automatically scaled based on Redis queue depth:
+- **Min replicas**: 1 (minimum worker to handle jobs)
+- **Max replicas**: 5 (prevents runaway scaling)
+- **Polling interval**: 5 seconds (checks queue depth every 5 seconds)
+- **Cooldown period**: 60 seconds (waits before scaling down)
+- **Trigger**: Scales when queue has jobs, scales down when empty
+
+Configuration in `k8s/worker-keda.yaml`:
+```yaml
+metadata:
+  address: redis.default.svc.cluster.local:6379
+  listName: job_queue
+  databaseIndex: "0"
+  activationThreshold: "5"
+  listLength: "10"
+```
+
+### Manual Scaling (Docker Compose)
+In `docker-compose.yml`, adjust worker replicas:
+```yaml
+deploy:
+  replicas: 3  # Change to desired number
+```
+
+### Performance Tuning
 - Model is cached in-process to avoid reloading per job
+- Workers poll every 2 seconds for new jobs
+- Adjust thresholds in worker-keda.yaml to match your inference latency and throughput needs
 
 ---
