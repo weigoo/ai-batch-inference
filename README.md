@@ -30,7 +30,8 @@ Client → API (FastAPI) → Redis Queue ↔ Workers (autoscaled by KEDA)
 - **Worker Service**: Polling workers that fetch jobs from Redis queue, run inference, and store results
 - **Redis**: Job queue, status tracking, and result storage
 - **KEDA**: Event-driven autoscaling based on Redis queue depth
-- **Prometheus**: Metrics collection and monitoring
+- **Prometheus**: Metrics collection
+- **Grafana**: Visualization and dashboards for metrics
 - **Model**: Hugging Face `distilbert-base-uncased-finetuned-sst-2-english` for sentiment analysis
 
 ## API Endpoints
@@ -79,8 +80,11 @@ This starts:
 
 ### Manual Setup
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install API dependencies
+pip install -r api/requirements.txt
+
+# Install Worker dependencies
+pip install -r worker/requirements.txt
 
 # Start Redis
 redis-server
@@ -88,7 +92,7 @@ redis-server
 # Start API
 uvicorn api.main:app --host 0.0.0.0 --port 8000
 
-# Start workers
+# Start workers (in another terminal)
 python worker/worker.py
 ```
 
@@ -109,22 +113,29 @@ python worker/worker.py
 │   └── storage.py       # Result storage
 ├── k8s/                 # Kubernetes manifests
 │   ├── api.yaml
+│   ├── grafana.yaml
 │   ├── prometheus.yaml
 │   ├── redis.yaml
 │   ├── worker.yaml
 │   └── worker-keda.yaml
 ├── docker-compose.yml
-└── requirements.txt
+├── api/requirements.txt
+└── worker/requirements.txt
 ```
 
 ## Dependencies
 
+### API Service (`api/requirements.txt`)
 - **fastapi**: Web framework
 - **uvicorn**: ASGI server
 - **redis**: In-memory data store
-- **transformers**: Hugging Face model library
-- **torch**: PyTorch (for transformers)
 - **pydantic**: Data validation
+- **prometheus-client**: Metrics collection
+
+### Worker Service (`worker/requirements.txt`)
+- **torch**: PyTorch neural network framework
+- **transformers**: Hugging Face model library
+- **redis**: In-memory data store
 - **prometheus-client**: Metrics collection
 
 ## Kubernetes Deployment
@@ -143,9 +154,10 @@ kubectl apply -f k8s/api.yaml
 kubectl apply -f k8s/worker.yaml
 kubectl apply -f k8s/worker-keda.yaml
 kubectl apply -f k8s/prometheus.yaml
+kubectl apply -f k8s/grafana.yaml
 ```
 
-KEDA will automatically scale workers based on Redis queue depth.
+KEDA will automatically scale workers based on Redis queue depth. Grafana provides real-time monitoring dashboards.
 
 ## Troubleshooting KEDA Scaling
 
