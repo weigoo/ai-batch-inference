@@ -5,3 +5,6 @@ __pycache__
 .venv
 .git
 .gitignore
+node_modules
+data/
+logs/

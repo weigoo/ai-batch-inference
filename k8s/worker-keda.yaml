@@ -10,7 +10,7 @@ spec:
   pollingInterval: 5
   cooldownPeriod: 60
 
-  minReplicaCount: 0
+  minReplicaCount: 1
   maxReplicaCount: 3
 
   triggers:

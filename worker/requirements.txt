@@ -1,0 +1,4 @@
+torch
+transformers
+redis
+prometheus-client

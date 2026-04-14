@@ -44,3 +44,23 @@ def dequeue_job():
 
 def get_queue_length():
     return redis_client.llen(QUEUE_NAME)    
+
+
+def dequeue_batch(batch_size=4):
+    import redis
+    import json
+
+    jobs = []
+
+    for _ in range(batch_size):
+
+        data = redis_client.lpop(QUEUE_NAME)
+
+        if data is None:
+            break
+
+        job = json.loads(data)
+
+        jobs.append(job)
+
+    return jobs

@@ -1,9 +1,17 @@
 import time
 
+from prometheus_client import Histogram
+
 from shared.model import run_inference
-from shared.queue import dequeue_job
+from shared.queue import dequeue_job, dequeue_batch
 from shared.status import set_status
 from shared.storage import increment_completed, store_result
+
+
+job_latency = Histogram(
+    "job_processing_seconds",
+    "Time spent processing jobs"
+)
 
 
 def worker_loop():
@@ -30,11 +38,11 @@ def worker_loop():
 
                 set_status(job_id, "RUNNING")
 
-                results = run_inference(texts)
+                with job_latency.time():
 
-                time.sleep(5)
-
-                store_result(job_id, results)
+                    results = run_inference(texts)
+                    
+                    store_result(job_id, results)
 
                 increment_completed()
                 set_status(job_id, "COMPLETED")
