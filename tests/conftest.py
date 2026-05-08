@@ -10,6 +10,8 @@ from unittest.mock import MagicMock, patch
 # Patch redis.Redis BEFORE any module imports it
 def pytest_configure(config):
     """pytest hook - runs before collecting tests"""
+    import os
+    os.environ.setdefault("METRICS_ALLOWED_HOSTS", "127.0.0.1,testclient")
     
     # Create a mock Redis client
     mock_redis = MagicMock()
