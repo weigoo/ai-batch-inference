@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+
+data:
+  alert_rules.yml: |
+    groups:
+      - name: batch-inference
+        interval: 30s
+        rules:
+          # Alert when queue depth is critically high
+          - alert: HighQueueLength
+            expr: job_queue_length > 100
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Queue depth critically high: {{ $value }} jobs"
+              description: "Job queue has {{ $value }} jobs pending. Workers may be overwhelmed."
+
+          # Alert when no jobs are being processed
+          - alert: WorkerProcessingStalled
+            expr: increase(jobs_completed_total[5m]) == 0
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "No jobs processed in 5 minutes"
+              description: "No jobs have completed in the last 5 minutes. Workers may be stuck."
+
+          # Alert on high job processing latency (P99 > 5 minutes)
+          - alert: HighJobLatency
+            expr: histogram_quantile(0.99, rate(job_processing_seconds_bucket[5m])) > 300
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "P99 job latency > 5 minutes"
+              description: "99th percentile job processing time is {{ $value | humanizeDuration }}. Jobs are taking too long."
+
+          # Alert when job failure rate is high
+          - alert: HighJobFailureRate
+            expr: |
+              (
+                increase(jobs_failed_total[5m]) 
+                / 
+                (increase(jobs_completed_total[5m]) + increase(jobs_failed_total[5m]))
+              ) > 0.1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Job failure rate > 10%"
+              description: "More than 10% of jobs are failing. Check worker logs for errors."
+
+          # Alert when queue is growing continuously
+          - alert: QueueGrowingContinuously
+            expr: |
+              increase(job_queue_length[5m]) > 0
+              AND
+              increase(job_queue_length[10m]) > increase(job_queue_length[5m])
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Job queue is growing continuously"
+              description: "Queue length is consistently increasing. Scale up workers or investigate slowdown."
+
+          # Alert when API request errors are high
+          - alert: HighAPIErrorRate
+            expr: |
+              (
+                increase(api_requests_total{status=~"5.."}[5m])
+                /
+                increase(api_requests_total[5m])
+              ) > 0.05
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "API error rate > 5%"
+              description: "More than 5% of API requests are returning errors."
+
+          # Alert when Redis is unavailable
+          - alert: RedisConnectivityIssue
+            expr: up{job="redis"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Redis connectivity lost"
+              description: "Cannot connect to Redis. Jobs queue may be unavailable."

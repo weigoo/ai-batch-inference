@@ -1,19 +1,28 @@
 # shared/queue.py
 
 import json
+import time
 import uuid
 
 import redis
 
-from shared.status import set_status
+from .config import config
+from .status import set_status
 
+# Initialize Redis client with config
 redis_client = redis.Redis(
-    host="redis",
-    port=6379,
-    decode_responses=True
+    host=config.REDIS_HOST,
+    port=config.REDIS_PORT,
+    db=config.REDIS_DB,
+    password=config.REDIS_PASSWORD if config.REDIS_PASSWORD else None,
+    decode_responses=True,
+    socket_connect_timeout=5,
+    socket_keepalive=True,
+    ssl=config.REDIS_SSL,
 )
 
 QUEUE_NAME = "job_queue"
+DLQ_NAME = "job_dlq"
 
 def enqueue_job(texts):
     job_id = str(uuid.uuid4())
@@ -43,24 +52,49 @@ def dequeue_job():
 
 
 def get_queue_length():
-    return redis_client.llen(QUEUE_NAME)    
+    return redis_client.llen(QUEUE_NAME)
 
 
-def dequeue_batch(batch_size=4):
-    import redis
-    import json
-
+def dequeue_batch(batch_size: int = 1):
+    """
+    Dequeue multiple jobs at once for batch inference optimization
+    
+    Args:
+        batch_size: Number of jobs to dequeue
+        
+    Returns:
+        List of job dicts
+    """
     jobs = []
-
+    
     for _ in range(batch_size):
-
         data = redis_client.lpop(QUEUE_NAME)
-
+        
         if data is None:
             break
-
+        
         job = json.loads(data)
-
         jobs.append(job)
-
+    
     return jobs
+
+
+def send_to_dlq(job: dict, reason: str):
+    """
+    Send failed job to Dead Letter Queue for manual review
+    
+    Args:
+        job: The job dict that failed
+        reason: Reason for failure
+    """
+    dlq_entry = {
+        "job": job,
+        "failed_reason": reason,
+        "timestamp": time.time()
+    }
+    redis_client.rpush(DLQ_NAME, json.dumps(dlq_entry))
+
+
+def get_dlq_length():
+    """Get number of jobs in dead letter queue"""
+    return redis_client.llen(DLQ_NAME)

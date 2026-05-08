@@ -3,3 +3,5 @@ uvicorn
 redis
 pydantic
 prometheus-client
+python-json-logger
+slowapi

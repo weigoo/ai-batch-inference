@@ -2,3 +2,4 @@ torch
 transformers
 redis
 prometheus-client
+python-json-logger
