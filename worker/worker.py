@@ -12,7 +12,7 @@ from prometheus_client import Counter, Histogram
 
 from shared.config import config
 from shared.logging import setup_logging
-from shared.model import run_inference, ModelError
+from shared.model import run_inference, ModelError, get_model
 from shared.queue import dequeue_job, send_to_dlq
 from shared.status import set_status
 from shared.storage import increment_completed, store_result
@@ -138,6 +138,19 @@ def worker_loop():
     # Register signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
+    
+    # Preload model on startup to ensure startup probe passes
+    logger.info("Preloading model on startup")
+    try:
+        get_model()
+        logger.info("Model preloaded successfully")
+        # Create readiness file to signal startup probe
+        with open("/tmp/worker_ready", "w") as f:
+            f.write("ready")
+        logger.info("Readiness file created")
+    except ModelError as e:
+        logger.error("Failed to preload model on startup: %s", e, exc_info=True)
+        sys.exit(1)
     
     logger.info("Worker started", extra={
         "pid": os.getpid(),
