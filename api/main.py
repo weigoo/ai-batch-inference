@@ -284,10 +284,16 @@ async def prometheus_metrics(request: Request):
     Restricts access to internal clients to prevent exposure of sensitive metrics
     """
     # Restrict metrics endpoint to internal IPs
-    client_host = request.client.host if request.client else "unknown"
-    allowed_hosts = ["127.0.0.1", "localhost", "redis", "prometheus", "172.18.0.1", "testclient"]
+    client_host = request.client.host if request.client else "unknown"    
     
-    if client_host not in allowed_hosts:
+    import ipaddress
+    is_private = False
+    try:
+        is_private = ipaddress.ip_address(client_host).is_private
+    except ValueError:
+        pass
+
+    if not is_private and client_host not in config.METRICS_ALLOWED_HOSTS:
         logger.warning("Unauthorized metrics access from %s", client_host)
         api_requests.labels(
             method="GET",

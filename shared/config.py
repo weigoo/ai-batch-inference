@@ -49,6 +49,7 @@ class Config:
     
     # Security Configuration
     ALLOWED_ORIGINS: list = field(default_factory=lambda: os.getenv("ALLOWED_ORIGINS", "localhost").split(","))
+    METRICS_ALLOWED_HOSTS: list = field(default_factory=lambda: os.getenv("METRICS_ALLOWED_HOSTS", "127.0.0.1").split(","))
     ENABLE_RATE_LIMITING: bool = os.getenv("ENABLE_RATE_LIMITING", "True").lower() == "true"
     RATE_LIMIT: str = os.getenv("RATE_LIMIT", "100/minute")
     

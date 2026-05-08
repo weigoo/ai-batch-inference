@@ -4,22 +4,9 @@ import json
 import time
 import uuid
 
-import redis
-
-from .config import config
+from .redis_client import redis_client
 from .status import set_status
 
-# Initialize Redis client with config
-redis_client = redis.Redis(
-    host=config.REDIS_HOST,
-    port=config.REDIS_PORT,
-    db=config.REDIS_DB,
-    password=config.REDIS_PASSWORD if config.REDIS_PASSWORD else None,
-    decode_responses=True,
-    socket_connect_timeout=5,
-    socket_keepalive=True,
-    ssl=config.REDIS_SSL,
-)
 
 QUEUE_NAME = "job_queue"
 DLQ_NAME = "job_dlq"
@@ -42,41 +29,18 @@ def enqueue_job(texts):
     return job_id
 
 
-def dequeue_job():
-    job = redis_client.lpop(QUEUE_NAME)
+def dequeue_job(timeout=5):
+    """"Block until a job is available or timeout occurs"""
+    result = redis_client.blpop(QUEUE_NAME, timeout=timeout)
 
-    if job:
-        return json.loads(job)
+    if result:
+        return json.loads(result[1])
 
     return None
 
 
 def get_queue_length():
     return redis_client.llen(QUEUE_NAME)
-
-
-def dequeue_batch(batch_size: int = 1):
-    """
-    Dequeue multiple jobs at once for batch inference optimization
-    
-    Args:
-        batch_size: Number of jobs to dequeue
-        
-    Returns:
-        List of job dicts
-    """
-    jobs = []
-    
-    for _ in range(batch_size):
-        data = redis_client.lpop(QUEUE_NAME)
-        
-        if data is None:
-            break
-        
-        job = json.loads(data)
-        jobs.append(job)
-    
-    return jobs
 
 
 def send_to_dlq(job: dict, reason: str):

@@ -8,7 +8,7 @@ import signal
 import sys
 import time
 
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Histogram, start_http_server
 
 from shared.config import config
 from shared.logging import setup_logging
@@ -153,8 +153,7 @@ def worker_loop():
         sys.exit(1)
     
     logger.info("Worker started", extra={
-        "pid": os.getpid(),
-        "polling_interval": config.WORKER_POLLING_INTERVAL,
+        "pid": os.getpid(),        
         "max_retries": config.WORKER_MAX_RETRIES
     })
     
@@ -165,9 +164,6 @@ def worker_loop():
                 
                 if job:
                     process_job(job)
-                else:
-                    # No job available, sleep before next poll
-                    time.sleep(config.WORKER_POLLING_INTERVAL)
                     
             except WorkerShutdownSignal:
                 logger.info("Shutdown signal received, exiting gracefully")
@@ -186,6 +182,7 @@ def worker_loop():
 
 if __name__ == "__main__":
     try:
+        start_http_server(9090)  # Start Prometheus metrics server
         worker_loop()
     except Exception as e:
         logger.exception("Fatal error in worker: %s", e)
