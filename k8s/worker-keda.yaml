@@ -19,6 +19,7 @@ spec:
       metadata:
         address: redis.default.svc.cluster.local:6379
         listName: job_queue
-        databaseIndex: "0"
-        activationThreshold: "2"  # Start scaling at 2 jobs
+        databaseIndex: "0"        
         listLength: "2"  # Target 2 jobs per worker
+        activationListLength: "2"  # Activate if at least 2 job is in the queue
+        enableTLS: "false"
