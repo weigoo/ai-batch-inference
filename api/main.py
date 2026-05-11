@@ -102,34 +102,35 @@ async def submit_job(request: JobRequest):
         JobResponse with job_id and status
     """
     try:
-        # Calculate total size
-        total_chars = sum(len(t) for t in request.texts)
-        if total_chars > 100_000:  # 100KB limit
+        with processing_latency.labels(endpoint="/submit-job").time():
+            # Calculate total size
+            total_chars = sum(len(t) for t in request.texts)
+            if total_chars > 100_000:  # 100KB limit
+                api_requests.labels(
+                    method="POST",
+                    endpoint="/submit-job",
+                    status=413
+                ).inc()
+                raise HTTPException(
+                    status_code=413,
+                    detail="Total text size exceeds 100KB limit"
+                )
+            
+            job_id = enqueue_job(request.texts)
+            
+            logger.info("Job submitted", extra={
+                "job_id": job_id,
+                "text_count": len(request.texts),
+                "total_chars": total_chars
+            })
+            
             api_requests.labels(
                 method="POST",
                 endpoint="/submit-job",
-                status=413
+                status=200
             ).inc()
-            raise HTTPException(
-                status_code=413,
-                detail="Total text size exceeds 100KB limit"
-            )
-        
-        job_id = enqueue_job(request.texts)
-        
-        logger.info("Job submitted", extra={
-            "job_id": job_id,
-            "text_count": len(request.texts),
-            "total_chars": total_chars
-        })
-        
-        api_requests.labels(
-            method="POST",
-            endpoint="/submit-job",
-            status=200
-        ).inc()
-        
-        return JobResponse(job_id=job_id, status="queued")
+            
+            return JobResponse(job_id=job_id, status="queued")
         
     except HTTPException:
         raise
@@ -192,26 +193,27 @@ async def fetch_result(job_id: str):
         ResultResponse with results
     """
     try:
-        result = get_result(job_id)
-        
-        if result is None:
+        with processing_latency.labels(endpoint="/result/{job_id}").time():
+            result = get_result(job_id)
+            
+            if result is None:
+                api_requests.labels(
+                    method="GET",
+                    endpoint="/result/{job_id}",
+                    status=404
+                ).inc()
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Result not found for job_id: {job_id}"
+                )
+            
             api_requests.labels(
                 method="GET",
                 endpoint="/result/{job_id}",
-                status=404
+                status=200
             ).inc()
-            raise HTTPException(
-                status_code=404,
-                detail=f"Result not found for job_id: {job_id}"
-            )
-        
-        api_requests.labels(
-            method="GET",
-            endpoint="/result/{job_id}",
-            status=200
-        ).inc()
-        
-        return ResultResponse(job_id=job_id, result=result)
+            
+            return ResultResponse(job_id=job_id, result=result)
         
     except HTTPException:
         raise
@@ -240,26 +242,27 @@ async def job_status(job_id: str):
         StatusResponse with current status
     """
     try:
-        status = get_status(job_id)
-        
-        if status is None:
+        with processing_latency.labels(endpoint="/status/{job_id}").time():
+            status = get_status(job_id)
+            
+            if status is None:
+                api_requests.labels(
+                    method="GET",
+                    endpoint="/status/{job_id}",
+                    status=404
+                ).inc()
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Status not found for job_id: {job_id}"
+                )
+            
             api_requests.labels(
                 method="GET",
                 endpoint="/status/{job_id}",
-                status=404
+                status=200
             ).inc()
-            raise HTTPException(
-                status_code=404,
-                detail=f"Status not found for job_id: {job_id}"
-            )
-        
-        api_requests.labels(
-            method="GET",
-            endpoint="/status/{job_id}",
-            status=200
-        ).inc()
-        
-        return StatusResponse(job_id=job_id, status=status)
+            
+            return StatusResponse(job_id=job_id, status=status)
         
     except HTTPException:
         raise

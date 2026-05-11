@@ -32,6 +32,9 @@ All configuration is managed through environment variables. This allows for easy
 ### Logging Configuration
 - `LOG_LEVEL`: Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) (default: `INFO`)
 
+### Metrics Configuration
+- `METRICS_ALLOWED_HOSTS`: Comma-separated list of hosts allowed to access `/metrics` endpoint (default: `127.0.0.1`)
+
 ### Storage Configuration
 - `RESULT_TTL`: Result storage time-to-live in seconds (default: `2592000` = 30 days)
 - `STATUS_TTL`: Job status TTL in seconds (default: `2592000` = 30 days)
